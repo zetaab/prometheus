@@ -41,11 +41,11 @@ func NewNode(l log.Logger, inf cache.SharedInformer) *Node {
 }
 
 // Run implements the TargetProvider interface.
-func (n *Node) Run(ctx context.Context, ch chan<- []*config.TargetGroup) {
+func (n *Node) Run(ctx context.Context, ch chan<- []*config.TargetGroup, subnet string) {
 	// Send full initial set of pod targets.
 	var initial []*config.TargetGroup
 	for _, o := range n.store.List() {
-		tg := n.buildNode(o.(*apiv1.Node))
+		tg := n.buildNode(o.(*apiv1.Node), subnet)
 		initial = append(initial, tg)
 	}
 	select {
@@ -70,7 +70,7 @@ func (n *Node) Run(ctx context.Context, ch chan<- []*config.TargetGroup) {
 				n.logger.With("err", err).Errorln("converting to Node object failed")
 				return
 			}
-			send(n.buildNode(node))
+			send(n.buildNode(node, subnet))
 		},
 		DeleteFunc: func(o interface{}) {
 			eventCount.WithLabelValues("node", "delete").Inc()
@@ -90,7 +90,7 @@ func (n *Node) Run(ctx context.Context, ch chan<- []*config.TargetGroup) {
 				n.logger.With("err", err).Errorln("converting to Node object failed")
 				return
 			}
-			send(n.buildNode(node))
+			send(n.buildNode(node, subnet))
 		},
 	})
 
@@ -142,13 +142,14 @@ func nodeLabels(n *apiv1.Node) model.LabelSet {
 	return ls
 }
 
-func (n *Node) buildNode(node *apiv1.Node) *config.TargetGroup {
+func (n *Node) buildNode(node *apiv1.Node, subnet string) *config.TargetGroup {
 	tg := &config.TargetGroup{
 		Source: nodeSource(node),
 	}
 	tg.Labels = nodeLabels(node)
 
-	addr, addrMap, err := nodeAddress(node)
+	n.logger.With("err", "foo").Debugf(subnet)
+	addr, addrMap, err := nodeAddress(node, subnet)
 	if err != nil {
 		n.logger.With("err", err).Debugf("No node address found")
 		return nil
@@ -176,14 +177,24 @@ func (n *Node) buildNode(node *apiv1.Node) *config.TargetGroup {
 // 3. NodeHostName
 //
 // Derived from k8s.io/kubernetes/pkg/util/node/node.go
-func nodeAddress(node *apiv1.Node) (string, map[apiv1.NodeAddressType][]string, error) {
+func nodeAddress(node *apiv1.Node, network string) (string, map[apiv1.NodeAddressType][]string, error) {
 	m := map[apiv1.NodeAddressType][]string{}
 	for _, a := range node.Status.Addresses {
 		m[a.Type] = append(m[a.Type], a.Address)
 	}
 
 	if addresses, ok := m[apiv1.NodeInternalIP]; ok {
-		return addresses[0], m, nil
+		if len(network) > 0 {
+			_, subnet, _ := net.ParseCIDR(network)
+			for _, address := range addresses {
+				ip := net.ParseIP(address)
+				if subnet.Contains(ip) {
+					return address, m, nil
+				}
+			}
+		} else {
+			return addresses[0], m, nil
+		}
 	}
 	if addresses, ok := m[apiv1.NodeExternalIP]; ok {
 		return addresses[0], m, nil

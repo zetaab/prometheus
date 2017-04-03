@@ -1,3 +1,9 @@
+# Openshift modified prometheus
+
+building:
+`env GOOS=linux GOARCH=amd64 make build && make docker`
+
+
 # Prometheus [![Build Status](https://travis-ci.org/prometheus/prometheus.svg)][travis]
 
 [![CircleCI](https://circleci.com/gh/prometheus/prometheus/tree/master.svg?style=shield)][circleci]

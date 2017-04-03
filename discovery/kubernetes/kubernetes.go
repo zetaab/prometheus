@@ -64,6 +64,7 @@ func init() {
 type Kubernetes struct {
 	client kubernetes.Interface
 	role   config.KubernetesRole
+	subnet  string
 	logger log.Logger
 }
 
@@ -140,6 +141,7 @@ func New(l log.Logger, conf *config.KubernetesSDConfig) (*Kubernetes, error) {
 		client: c,
 		logger: l,
 		role:   conf.Role,
+		subnet: conf.Subnet,
 	}, nil
 }
 
@@ -212,7 +214,7 @@ func (k *Kubernetes) Run(ctx context.Context, ch chan<- []*config.TargetGroup) {
 		for !node.informer.HasSynced() {
 			time.Sleep(100 * time.Millisecond)
 		}
-		node.Run(ctx, ch)
+		node.Run(ctx, ch, k.subnet)
 
 	default:
 		k.logger.Errorf("unknown Kubernetes discovery kind %q", k.role)
