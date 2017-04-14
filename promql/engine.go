@@ -736,7 +736,7 @@ func (ev *evaluator) vectorSelector(node *VectorSelector) Vector {
 		}
 		vec = append(vec, Sample{
 			Metric: node.series[i].Labels(),
-			Point:  Point{V: v, T: ev.Timestamp},
+			Point:  Point{V: v, T: t},
 		})
 	}
 	return vec
